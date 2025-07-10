@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Custom Tetris</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      margin: 0;
+      padding: 20px;
+      background: #f0f0f0;
+      font-family: sans-serif;
+    }
+    #game-container {
+      display: flex;
+      align-items: flex-start;
+    }
+    #game {
+      background: #000;
+      border: 2px solid #333;
+    }
+    #sidebar {
+      margin-left: 20px;
+      text-align: left;
+    }
+    /* ID 공간 */
+#next-id {
+  text-align: center;
+  line-height: 3em;
+  margin-bottom: 0.0em;
+}
+#next-id .title-line {
+  font-size: 2em;
+  font-weight: bold;
+}
+#next-id .id-line {
+  font-size: 1.7em;
+}
+    /* 캔버스를 1em 아래로 내림 */
+    #next {
+      display: block;
+      margin-top: 0.1em;
+      background: #111;
+      border: 2px solid #333;
+    }
+    #stats p {
+      margin: 3px 0;
+      font-size: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game" width="360" height="720"></canvas>
+    <div id="sidebar">
+      <!-- 1em 높이의 빈 공간 위에 ID를 찍습니다 -->
+      <div id="next-id"></div>
+      <canvas id="next" width="170" height="170"></canvas>
+      <div id="stats">
+        <p>Lines: <span id="lines">0</span></p>
+        <p>Blocks: <span id="blocks">0</span></p>
+        <p>Score: <span id="score">0</span></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const COLS = 12, ROWS = 24, CELL = 30;
+    const PREVIEW_CELL = 24;   // 미리보기 블록 크기
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const nextCanvas = document.getElementById('next');
+    const nextCtx = nextCanvas.getContext('2d');
+    const statsLines = document.getElementById('lines');
+    const statsBlocks = document.getElementById('blocks');
+    const statsScore = document.getElementById('score');
+    const nextIdEl = document.getElementById('next-id');
+
+    const COLORS = ['#5FCE32', '#3B6EFF', '#66E0D0', '#E19E3B', '#D5D5D5', '#EF6969', '#B44AC6', '#FFE181'];
+
+         const tetrominosA = [
+ { color: COLORS[0], shape: [[1, 1, 1, 1, 1, 1, 1]], id: 001 }, // 001
+{ color: COLORS[1], shape: [[1, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1]], id: 002 }, //002
+{ color: COLORS[2], shape: [[1, 1, 1, 1, 1, 1], [1, 0, 0, 0, 0, 0]], id: 003 }, // 003
+{ color: COLORS[1], shape: [[0, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1]], id: 004 }, // 004
+{ color: COLORS[2], shape: [[1, 1, 1, 1, 1, 1], [0, 1, 0, 0, 0, 0]], id: 005 }, // 005
+{ color: COLORS[1], shape: [[0, 0, 1, 0, 0, 0], [1, 1, 1, 1, 1, 1]], id: 006 }, // 006
+{ color: COLORS[2], shape: [[1, 1, 1, 1, 1, 1], [0, 0, 1, 0, 0, 0]], id: 007 }, // 007
+{ color: COLORS[1], shape: [[1, 0, 0, 0, 0], [1, 0, 0, 0, 0], [1, 1, 1, 1, 1]], id: 008 }, // 008
+{ color: COLORS[2], shape: [[1, 1, 1, 1, 1], [1, 0, 0, 0, 0], [1, 0, 0, 0, 0]], id: 009 }, // 009
+{ color: COLORS[1], shape: [[0, 1, 0, 0, 0], [0, 1, 0, 0, 0], [1, 1, 1, 1, 1]], id: 010 }, // 010
+{ color: COLORS[2], shape: [[1, 1, 1, 1, 1], [0, 1, 0, 0, 0], [0, 1, 0, 0, 0]], id: 011 }, // 011
+{ color: COLORS[0], shape: [[0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [1, 1, 1, 1, 1]], id: 012 }, // 012
+{ color: COLORS[1], shape: [[1, 1, 0, 0, 0], [1, 1, 1, 1, 1]], id: 013 }, // 013
+{ color: COLORS[2], shape: [[1, 1, 1, 1, 1], [1, 1, 0, 0, 0]], id: 014 }, // 014
+{ color: COLORS[1], shape: [[1, 0, 1, 0, 0], [1, 1, 1, 1, 1]], id: 015 }, // 015
+{ color: COLORS[2], shape: [[1, 1, 1, 1, 1], [1, 0, 1, 0, 0]], id: 016 }, // 016
+{ color: COLORS[1], shape: [[1, 0, 0, 1, 0], [1, 1, 1, 1, 1]], id: 017 }, // 017
+{ color: COLORS[2], shape: [[1, 1, 1, 1, 1], [1, 0, 0, 1, 0]], id: 018 }, // 018
+{ color: COLORS[0], shape: [[1, 0, 0, 0, 1], [1, 1, 1, 1, 1]], id: 019 }, // 019
+{ color: COLORS[1], shape: [[0, 1, 1, 0, 0], [1, 1, 1, 1, 1]], id: 020 }, // 020
+{ color: COLORS[2], shape: [[1, 1, 1, 1, 1], [0, 1, 1, 0, 0]], id: 021 }, // 021
+{ color: COLORS[0], shape: [[0, 1, 0, 1, 0], [1, 1, 1, 1, 1]], id: 022 }, // 022
+{ color: COLORS[0], shape: [[1, 0, 0, 0], [1, 0, 0, 0], [1, 0, 0, 0], [1, 1, 1, 1]], id: 023 }, // 023
+{ color: COLORS[1], shape: [[0, 1, 0, 0], [0, 1, 0, 0], [0, 1, 0, 0], [1, 1, 1, 1]], id: 024 }, // 024
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [0, 1, 0, 0], [0, 1, 0, 0], [0, 1, 0, 0]], id: 025 }, // 025
+{ color: COLORS[1], shape: [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 1]], id: 026 }, // 026
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [1, 1, 0, 0], [1, 0, 0, 0]], id: 027 }, // 027
+{ color: COLORS[1], shape: [[1, 0, 0, 0], [1, 0, 1, 0], [1, 1, 1, 1]], id: 028 }, // 028
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [1, 0, 1, 0], [1, 0, 0, 0]], id: 029 }, // 029
+{ color: COLORS[1], shape: [[1, 0, 0, 0], [1, 0, 0, 1], [1, 1, 1, 1]], id: 030 }, // 030
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [1, 0, 0, 1], [1, 0, 0, 0]], id: 031 }, // 031
+{ color: COLORS[1], shape: [[0, 1, 0, 0], [1, 1, 0, 0], [1, 1, 1, 1]], id: 032 }, // 032
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [1, 1, 0, 0], [0, 1, 0, 0]], id: 033 }, // 033
+{ color: COLORS[1], shape: [[0, 0, 1, 0], [1, 0, 1, 0], [1, 1, 1, 1]], id: 034 }, // 034
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [1, 0, 1, 0], [0, 0, 1, 0]], id: 035 }, // 035
+{ color: COLORS[1], shape: [[0, 1, 0, 0], [0, 1, 1, 0], [1, 1, 1, 1]], id: 036 }, // 036
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [0, 1, 1, 0], [0, 1, 0, 0]], id: 037 }, // 037
+{ color: COLORS[1], shape: [[1, 1, 1, 0], [1, 1, 1, 1]], id: 038 }, // 038
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [1, 1, 1, 0]], id: 039 }, // 039
+{ color: COLORS[1], shape: [[1, 1, 0, 1], [1, 1, 1, 1]], id: 040 }, // 040
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [1, 1, 0, 1]], id: 041 }, // 041
+{ color: COLORS[1], shape: [[1, 1, 0, 0], [1, 0, 0, 0], [1, 1, 1, 1]], id: 042 }, // 042
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [1, 0, 0, 0], [1, 1, 0, 0]], id: 043 }, // 043
+{ color: COLORS[1], shape: [[0, 1, 1, 0], [0, 1, 0, 0], [1, 1, 1, 1]], id: 044 }, // 044
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [0, 1, 0, 0], [0, 1, 1, 0]], id: 045 }, // 045
+{ color: COLORS[1], shape: [[1, 1, 0, 0, 0], [0, 1, 0, 0, 0], [0, 1, 1, 1, 1]], id: 046 }, // 046
+{ color: COLORS[2], shape: [[0, 1, 1, 1, 1], [0, 1, 0, 0, 0], [1, 1, 0, 0, 0]], id: 047 }, // 047
+{ color: COLORS[1], shape: [[1, 1, 0, 0], [0, 1, 0, 0], [1, 1, 1, 1]], id: 048 }, // 048
+{ color: COLORS[2], shape: [[1, 1, 1, 1], [0, 1, 0, 0], [1, 1, 0, 0]], id: 049 }, // 049
+{ color: COLORS[1], shape: [[0, 1, 0, 0, 0], [1, 1, 0, 0, 0], [0, 1, 1, 1, 1]], id: 050 }, // 050
+{ color: COLORS[2], shape: [[0, 1, 1, 1, 1], [1, 1, 0, 0, 0], [0, 1, 0, 0, 0]], id: 051 }, // 051
+{ color: COLORS[1], shape: [[1, 1, 0, 0, 0, 0], [0, 1, 1, 1, 1, 1]], id: 052 }, // 052
+{ color: COLORS[2], shape: [[0, 1, 1, 1, 1, 1], [1, 1, 0, 0, 0, 0]], id: 053 }, // 053
+{ color: COLORS[1], shape: [[1, 1, 1, 0, 0, 0], [0, 0, 1, 1, 1, 1]], id: 054 }, // 054
+{ color: COLORS[2], shape: [[0, 0, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]], id: 055 }, // 055
+{ color: COLORS[1], shape: [[1, 1, 1, 0, 0], [0, 1, 1, 1, 1]], id: 056 }, // 056
+{ color: COLORS[2], shape: [[0, 1, 1, 1, 1], [1, 1, 1, 0, 0]], id: 057 }, // 057
+{ color: COLORS[1], shape: [[1, 0, 0, 0, 0], [1, 1, 0, 0, 0], [0, 1, 1, 1, 1]], id: 058 }, // 058
+{ color: COLORS[2], shape: [[0, 1, 1, 1, 1], [1, 1, 0, 0, 0], [1, 0, 0, 0, 0]], id: 059 }, // 059
+{ color: COLORS[0], shape: [[1, 0, 0, 0, 0], [1, 1, 1, 1, 1], [1, 0, 0, 0, 0]], id: 060 }, // 060
+{ color: COLORS[1], shape: [[1, 0, 0, 0, 0], [1, 1, 1, 1, 1], [0, 1, 0, 0, 0]], id: 061 }, // 061
+{ color: COLORS[2], shape: [[0, 1, 0, 0, 0], [1, 1, 1, 1, 1], [1, 0, 0, 0, 0]], id: 062 }, // 062
+{ color: COLORS[3], shape: [[1, 0, 0, 0, 0], [1, 1, 1, 1, 1], [0, 0, 1, 0, 0]], id: 063 }, // 063
+{ color: COLORS[4], shape: [[0, 0, 1, 0, 0], [1, 1, 1, 1, 1], [1, 0, 0, 0, 0]], id: 064 }, // 064
+{ color: COLORS[3], shape: [[1, 0, 0, 0, 0], [1, 1, 1, 1, 1], [0, 0, 0, 1, 0]], id: 065 }, // 065
+{ color: COLORS[4], shape: [[0, 0, 0, 1, 0], [1, 1, 1, 1, 1], [1, 0, 0, 0, 0]], id: 066 }, // 066
+{ color: COLORS[0], shape: [[1, 0, 0, 0, 0], [1, 1, 1, 1, 1], [0, 0, 0, 0, 1]], id: 067 }, // 067
+{ color: COLORS[0], shape: [[0, 0, 0, 0, 1], [1, 1, 1, 1, 1], [1, 0, 0, 0, 0]], id: 068 }, // 068
+{ color: COLORS[0], shape: [[0, 1, 0, 0, 0], [1, 1, 1, 1, 1], [0, 1, 0, 0, 0]], id: 069 }, // 069
+{ color: COLORS[3], shape: [[0, 1, 0, 0, 0], [1, 1, 1, 1, 1], [0, 0, 1, 0, 0]], id: 070 }, // 070
+{ color: COLORS[4], shape: [[0, 0, 1, 0, 0], [1, 1, 1, 1, 1], [0, 1, 0, 0, 0]], id: 071 }, // 071
+{ color: COLORS[0], shape: [[0, 1, 0, 0, 0], [1, 1, 1, 1, 1], [0, 0, 0, 1, 0]], id: 072 }, // 072
+{ color: COLORS[0], shape: [[0, 0, 0, 1, 0], [1, 1, 1, 1, 1], [0, 1, 0, 0, 0]], id: 073 }, // 073
+{ color: COLORS[0], shape: [[0, 0, 1, 0, 0], [1, 1, 1, 1, 1], [0, 0, 1, 0, 0]], id: 074 }, // 074
+{ color: COLORS[3], shape: [[1, 0, 0, 0], [1, 0, 0, 0], [1, 1, 1, 1], [0, 1, 0, 0]], id: 075 }, // 075
+{ color: COLORS[4], shape: [[0, 1, 0, 0], [1, 1, 1, 1], [1, 0, 0, 0], [1, 0, 0, 0]], id: 076 }, // 076
+{ color: COLORS[3], shape: [[1, 0, 0, 0], [1, 0, 0, 0], [1, 1, 1, 1], [0, 0, 1, 0]], id: 077 }, // 077
+{ color: COLORS[4], shape: [[0, 0, 1, 0], [1, 1, 1, 1], [1, 0, 0, 0], [1, 0, 0, 0]], id: 078 }, // 078
+{ color: COLORS[3], shape: [[1, 0, 0, 0], [1, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 1]], id: 079 }, // 079
+{ color: COLORS[4], shape: [[0, 0, 0, 1], [1, 1, 1, 1], [1, 0, 0, 0], [1, 0, 0, 0]], id: 080 }, // 080
+{ color: COLORS[3], shape: [[0, 1, 0, 0], [0, 1, 0, 0], [1, 1, 1, 1], [1, 0, 0, 0]], id: 081 }, // 081
+{ color: COLORS[4], shape: [[1, 0, 0, 0], [1, 1, 1, 1], [0, 1, 0, 0], [0, 1, 0, 0]], id: 082 }, // 082
+{ color: COLORS[0], shape: [[0, 1, 0, 0], [0, 1, 0, 0], [1, 1, 1, 1], [0, 1, 0, 0]], id: 083 }, // 083
+{ color: COLORS[3], shape: [[0, 1, 0, 0], [0, 1, 0, 0], [1, 1, 1, 1], [0, 0, 1, 0]], id: 084 }, // 084
+{ color: COLORS[4], shape: [[0, 0, 1, 0], [1, 1, 1, 1], [0, 1, 0, 0], [0, 1, 0, 0]], id: 085 }, // 085
+{ color: COLORS[3], shape: [[0, 1, 0, 0], [0, 1, 0, 0], [1, 1, 1, 1], [0, 0, 0, 1]], id: 086 }, // 086
+{ color: COLORS[4], shape: [[0, 0, 0, 1], [1, 1, 1, 1], [0, 1, 0, 0], [0, 1, 0, 0]], id: 087 }, // 087
+{ color: COLORS[3], shape: [[1, 1, 0, 0], [1, 1, 1, 1], [1, 0, 0, 0]], id: 088 }, // 088
+{ color: COLORS[4], shape: [[1, 0, 0, 0], [1, 1, 1, 1], [1, 1, 0, 0]], id: 089 }, // 089
+{ color: COLORS[3], shape: [[1, 1, 0, 0], [1, 1, 1, 1], [0, 1, 0, 0]], id: 090 }, // 090
+{ color: COLORS[4], shape: [[0, 1, 0, 0], [1, 1, 1, 1], [1, 1, 0, 0]], id: 091 }, // 091
+{ color: COLORS[3], shape: [[1, 1, 0, 0], [1, 1, 1, 1], [0, 0, 1, 0]], id: 092 }, // 092
+{ color: COLORS[4], shape: [[0, 0, 1, 0], [1, 1, 1, 1], [1, 1, 0, 0]], id: 093 }, // 093
+{ color: COLORS[3], shape: [[1, 1, 0, 0], [1, 1, 1, 1], [0, 0, 0, 1]], id: 094 }, // 094
+{ color: COLORS[4], shape: [[0, 0, 0, 1], [1, 1, 1, 1], [1, 1, 0, 0]], id: 095 }, // 095
+{ color: COLORS[3], shape: [[0, 1, 1, 0], [1, 1, 1, 1], [1, 0, 0, 0]], id: 096 }, // 096
+{ color: COLORS[4], shape: [[1, 0, 0, 0], [1, 1, 1, 1], [0, 1, 1, 0]], id: 097 }, // 097
+{ color: COLORS[3], shape: [[0, 1, 1, 0], [1, 1, 1, 1], [0, 1, 0, 0]], id: 098 }, // 098
+{ color: COLORS[4], shape: [[0, 1, 0, 0], [1, 1, 1, 1], [0, 1, 1, 0]], id: 099 }, // 099
+{ color: COLORS[3], shape: [[1, 0, 1, 0], [1, 1, 1, 1], [1, 0, 0, 0]], id: 100 }, // 100
+{ color: COLORS[4], shape: [[1, 0, 0, 0], [1, 1, 1, 1], [1, 0, 1, 0]], id: 101 }, // 101
+{ color: COLORS[3], shape: [[1, 0, 1, 0], [1, 1, 1, 1], [0, 1, 0, 0]], id: 102 }, // 102
+{ color: COLORS[4], shape: [[0, 1, 0, 0], [1, 1, 1, 1], [1, 0, 1, 0]], id: 103 }, // 103
+{ color: COLORS[3], shape: [[1, 0, 1, 0], [1, 1, 1, 1], [0, 0, 1, 0]], id: 104 }, // 104
+{ color: COLORS[4], shape: [[0, 0, 1, 0], [1, 1, 1, 1], [1, 0, 1, 0]], id: 105 }, // 105
+{ color: COLORS[3], shape: [[1, 0, 1, 0], [1, 1, 1, 1], [0, 0, 0, 1]], id: 106 }, // 106
+{ color: COLORS[4], shape: [[0, 0, 0, 1], [1, 1, 1, 1], [1, 0, 1, 0]], id: 107 }, // 107
+{ color: COLORS[3], shape: [[1, 0, 0, 1], [1, 1, 1, 1], [1, 0, 0, 0]], id: 108 }, // 108
+{ color: COLORS[4], shape: [[1, 0, 0, 0], [1, 1, 1, 1], [1, 0, 0, 1]], id: 109 }, // 109
+{ color: COLORS[3], shape: [[1, 0, 0, 1], [1, 1, 1, 1], [0, 1, 0, 0]], id: 110 }, // 110
+{ color: COLORS[4], shape: [[0, 1, 0, 0], [1, 1, 1, 1], [1, 0, 0, 1]], id: 111 }, // 111
+{ color: COLORS[3], shape: [[1, 1, 0, 0, 0], [0, 1, 1, 1, 1], [0, 1, 0, 0, 0]], id: 112 }, // 112
+{ color: COLORS[4], shape: [[0, 1, 0, 0, 0], [0, 1, 1, 1, 1], [1, 1, 0, 0, 0]], id: 113 }, // 113
+{ color: COLORS[3], shape: [[1, 1, 0, 0, 0], [0, 1, 1, 1, 1], [0, 0, 1, 0, 0]], id: 114 }, // 114
+{ color: COLORS[4], shape: [[0, 0, 1, 0, 0], [0, 1, 1, 1, 1], [1, 1, 0, 0, 0]], id: 115 }, // 115
+{ color: COLORS[3], shape: [[1, 1, 0, 0, 0], [0, 1, 1, 1, 1], [0, 0, 0, 1, 0]], id: 116 }, // 116
+{ color: COLORS[4], shape: [[0, 0, 0, 1, 0], [0, 1, 1, 1, 1], [1, 1, 0, 0, 0]], id: 117 }, // 117
+{ color: COLORS[3], shape: [[1, 1, 0, 0, 0], [0, 1, 1, 1, 1], [0, 0, 0, 0, 1]], id: 118 }, // 118
+{ color: COLORS[4], shape: [[0, 0, 0, 0, 1], [0, 1, 1, 1, 1], [1, 1, 0, 0, 0]], id: 119 }, // 119
+{ color: COLORS[3], shape: [[1, 1, 0, 1, 0], [0, 1, 1, 1, 1]], id: 120 }, // 120
+{ color: COLORS[4], shape: [[0, 1, 1, 1, 1], [1, 1, 0, 1, 0]], id: 121 }, // 121
+{ color: COLORS[3], shape: [[1, 1, 0, 0, 1], [0, 1, 1, 1, 1]], id: 122 }, // 122
+{ color: COLORS[4], shape: [[0, 1, 1, 1, 1], [1, 1, 0, 0, 1]], id: 123 }, // 123
+{ color: COLORS[0], shape: [[1, 1, 1, 0, 0], [0, 0, 1, 0, 0], [0, 0, 1, 1, 1]], id: 124 }, // 124
+{ color: COLORS[0], shape: [[0, 0, 1, 1, 1], [0, 0, 1, 0, 0], [1, 1, 1, 0, 0]], id: 125 }, // 125
+{ color: COLORS[3], shape: [[1, 1, 1, 0], [0, 1, 0, 0], [0, 1, 1, 1]], id: 126 }, // 126
+{ color: COLORS[4], shape: [[0, 1, 1, 1], [0, 1, 0, 0], [1, 1, 1, 0]], id: 127 }, // 127
+{ color: COLORS[0], shape: [[1, 1, 1], [1, 0, 0], [1, 1, 1]], id: 128 }, // 128
+{ color: COLORS[0], shape: [[1, 1, 0], [1, 0, 1], [1, 1, 1]], id: 129 }, // 129
+{ color: COLORS[5], shape: [[0, 0, 1, 0, 0], [1, 1, 1, 0, 0], [0, 0, 1, 1, 1]], id: 130 }, // 130
+{ color: COLORS[6], shape: [[0, 0, 1, 1, 1], [1, 1, 1, 0, 0], [0, 0, 1, 0, 0]], id: 131 }, // 131
+{ color: COLORS[5], shape: [[0, 1, 0, 0], [1, 1, 1, 0], [0, 1, 1, 1]], id: 132 }, // 132
+{ color: COLORS[6], shape: [[0, 1, 1, 1], [1, 1, 1, 0], [0, 1, 0, 0]], id: 133 }, // 133
+{ color: COLORS[5], shape: [[1, 0, 0, 0], [1, 1, 1, 0], [0, 1, 1, 1]], id: 134 }, // 134
+{ color: COLORS[6], shape: [[0, 1, 1, 1], [1, 1, 1, 0], [1, 0, 0, 0]], id: 135 }, // 135
+{ color: COLORS[5], shape: [[0, 0, 1, 0], [1, 1, 1, 0], [0, 1, 1, 1]], id: 136 }, // 136
+{ color: COLORS[6], shape: [[0, 1, 1, 1], [1, 1, 1, 0], [0, 0, 1, 0]], id: 137 }, // 137
+{ color: COLORS[5], shape: [[1, 0, 0], [1, 1, 1], [1, 1, 1]], id: 138 }, // 138
+{ color: COLORS[6], shape: [[1, 1, 1], [1, 1, 1], [1, 0, 0]], id: 139 }, // 139
+{ color: COLORS[0], shape: [[0, 1, 0], [1, 1, 1], [1, 1, 1]], id: 140 }, // 140
+{ color: COLORS[0], shape: [[1, 1, 0, 0], [0, 1, 1, 1], [1, 1, 0, 0]], id: 141 }, // 141
+{ color: COLORS[5], shape: [[1, 1, 0, 0], [0, 1, 1, 1], [0, 1, 1, 0]], id: 142 }, // 142
+{ color: COLORS[6], shape: [[0, 1, 1, 0], [0, 1, 1, 1], [1, 1, 0, 0]], id: 143 }, // 143
+{ color: COLORS[5], shape: [[1, 1, 0, 0], [0, 1, 1, 0], [0, 1, 1, 1]], id: 144 }, // 144
+{ color: COLORS[6], shape: [[0, 1, 1, 1], [0, 1, 1, 0], [1, 1, 0, 0]], id: 145 }, // 145
+{ color: COLORS[5], shape: [[1, 0, 0, 0, 0], [1, 1, 1, 0, 0], [0, 0, 1, 1, 1]], id: 146 }, // 146
+{ color: COLORS[6], shape: [[0, 0, 1, 1, 1], [1, 1, 1, 0, 0], [1, 0, 0, 0, 0]], id: 147 }, // 147
+{ color: COLORS[5], shape: [[0, 1, 0, 0, 0], [1, 1, 1, 0, 0], [0, 0, 1, 1, 1]], id: 148 }, // 148
+{ color: COLORS[6], shape: [[0, 0, 1, 1, 1], [1, 1, 1, 0, 0], [0, 1, 0, 0, 0]], id: 149 }, // 149
+{ color: COLORS[5], shape: [[0, 0, 0, 1], [1, 1, 0, 1], [0, 1, 1, 1]], id: 150 }, // 150
+{ color: COLORS[6], shape: [[0, 1, 1, 1], [1, 1, 0, 1], [0, 0, 0, 1]], id: 151 }, // 151
+{ color: COLORS[5], shape: [[1, 0, 0, 0], [1, 1, 0, 0], [0, 1, 0, 0], [0, 1, 1, 1]], id: 152 }, // 152
+{ color: COLORS[6], shape: [[0, 1, 1, 1], [0, 1, 0, 0], [1, 1, 0, 0], [1, 0, 0, 0]], id: 153 }, // 153
+{ color: COLORS[0], shape: [[1, 1, 0, 0, 0], [0, 1, 1, 1, 0], [0, 0, 0, 1, 1]], id: 154 }, // 154
+{ color: COLORS[0], shape: [[0, 0, 0, 1, 1], [0, 1, 1, 1, 0], [1, 1, 0, 0, 0]], id: 155 }, // 155
+{ color: COLORS[5], shape: [[1, 0, 0, 0], [1, 1, 1, 0], [1, 0, 1, 1]], id: 156 }, // 156
+{ color: COLORS[6], shape: [[1, 0, 1, 1], [1, 1, 1, 0], [1, 0, 0, 0]], id: 157 }, // 157
+{ color: COLORS[5], shape: [[0, 1, 0, 0], [1, 1, 1, 0], [1, 0, 1, 1]], id: 158 }, // 158
+{ color: COLORS[6], shape: [[1, 0, 1, 1], [1, 1, 1, 0], [0, 1, 0, 0]], id: 159 }, // 159
+{ color: COLORS[5], shape: [[0, 0, 1, 0], [1, 1, 1, 0], [1, 0, 1, 1]], id: 160 }, // 160
+{ color: COLORS[6], shape: [[1, 0, 1, 1], [1, 1, 1, 0], [0, 0, 1, 0]], id: 161 }, // 161
+{ color: COLORS[0], shape: [[1, 0, 0, 0], [1, 1, 0, 0], [0, 1, 1, 0], [0, 0, 1, 1]], id: 162 }, // 162
+{ color: COLORS[0], shape: [[1, 0, 0, 0], [1, 0, 0, 0], [1, 1, 0, 0], [0, 1, 1, 1]], id: 163 }, // 163
+{ color: COLORS[0], shape: [[1, 0, 0, 0], [1, 1, 1, 0], [0, 0, 1, 0], [0, 0, 1, 1]], id: 164 }, // 164
+{ color: COLORS[5], shape: [[1, 1, 0, 0, 0], [0, 1, 1, 0, 0], [0, 0, 1, 1, 1]], id: 165 }, // 165
+{ color: COLORS[6], shape: [[0, 0, 1, 1, 1], [0, 1, 1, 0, 0], [1, 1, 0, 0, 0]], id: 166 }, // 166
+{ color: COLORS[5], shape: [[1, 1, 0, 0], [0, 1, 1, 0], [0, 0, 1, 0], [0, 0, 1, 1]], id: 167 }, // 167
+{ color: COLORS[6], shape: [[0, 0, 1, 1], [0, 0, 1, 0], [0, 1, 1, 0], [1, 1, 0, 0]], id: 168 }, // 168
+{ color: COLORS[5], shape: [[1, 1, 1, 0, 1], [0, 0, 1, 1, 1]], id: 169 }, // 169
+{ color: COLORS[6], shape: [[0, 0, 1, 1, 1], [1, 1, 1, 0, 1]], id: 170 }, // 170
+{ color: COLORS[5], shape: [[1, 0, 0, 0], [1, 1, 0, 1], [0, 1, 1, 1]], id: 171 }, // 171
+{ color: COLORS[6], shape: [[0, 1, 1, 1], [1, 1, 0, 1], [1, 0, 0, 0]], id: 172 }, // 172
+{ color: COLORS[5], shape: [[0, 1, 0, 0], [1, 1, 0, 1], [0, 1, 1, 1]], id: 173 }, // 173
+{ color: COLORS[6], shape: [[0, 1, 1, 1], [1, 1, 0, 1], [0, 1, 0, 0]], id: 174 }, // 174
+{ color: COLORS[0], shape: [[0, 1, 0, 0], [1, 1, 1, 0], [0, 0, 1, 1], [0, 0, 1, 0]], id: 175 }, // 175
+{ color: COLORS[5], shape: [[0, 1, 0, 0], [1, 1, 1, 0], [0, 0, 1, 1], [0, 0, 0, 1]], id: 176 }, // 176
+{ color: COLORS[6], shape: [[0, 0, 0, 1], [0, 0, 1, 1], [1, 1, 1, 0], [0, 1, 0, 0]], id: 177 }, // 177
+{ color: COLORS[5], shape: [[0, 0, 1, 0], [1, 1, 1, 0], [0, 0, 1, 1], [0, 0, 0, 1]], id: 178 }, // 178
+{ color: COLORS[6], shape: [[0, 0, 0, 1], [0, 0, 1, 1], [1, 1, 1, 0], [0, 0, 1, 0]], id: 179 }, // 179
+{ color: COLORS[5], shape: [[1, 1, 0], [0, 1, 1], [1, 1, 1]], id: 180 }, // 180
+{ color: COLORS[6], shape: [[1, 1, 1], [0, 1, 1], [1, 1, 0]], id: 181 }, // 181
+{ color: COLORS[0], shape: [[1, 1, 0], [1, 1, 1], [0, 1, 1]], id: 182 }, // 182
+{ color: COLORS[5], shape: [[1, 1, 1, 0], [0, 0, 1, 1], [0, 0, 1, 1]], id: 183 }, // 183
+{ color: COLORS[6], shape: [[0, 0, 1, 1], [0, 0, 1, 1], [1, 1, 1, 0]], id: 184 }, // 184
+{ color: COLORS[5], shape: [[1, 1, 0, 0], [0, 1, 1, 1], [0, 0, 1, 1]], id: 185 }, // 185
+{ color: COLORS[6], shape: [[0, 0, 1, 1], [0, 1, 1, 1], [1, 1, 0, 0]], id: 186 }, // 186
+{ color: COLORS[0], shape: [[1, 0, 1], [1, 1, 1], [1, 0, 1]], id: 187 }, // 187
+{ color: COLORS[5], shape: [[1, 1, 0, 0], [0, 1, 0, 1], [0, 1, 1, 1]], id: 188 }, // 188
+{ color: COLORS[6], shape: [[0, 1, 1, 1], [0, 1, 0, 1], [1, 1, 0, 0]], id: 189 }, // 189
+{ color: COLORS[5], shape: [[1, 1, 0, 0], [0, 1, 0, 0], [0, 1, 1, 1], [0, 0, 1, 0]], id: 190 }, // 190
+{ color: COLORS[6], shape: [[0, 0, 1, 0], [0, 1, 1, 1], [0, 1, 0, 0], [1, 1, 0, 0]], id: 191 }, // 191
+{ color: COLORS[0], shape: [[0, 1, 1, 1, 0], [1, 1, 0, 1, 1]], id: 192 }, // 192
+{ color: COLORS[5], shape: [[0, 1, 1, 0], [1, 1, 0, 0], [0, 1, 1, 1]], id: 193 }, // 193
+{ color: COLORS[6], shape: [[0, 1, 1, 1], [1, 1, 0, 0], [0, 1, 1, 0]], id: 194 }, // 194
+{ color: COLORS[5], shape: [[0, 1, 0, 1], [0, 1, 1, 1], [1, 1, 0, 0]], id: 195 }, // 195
+{ color: COLORS[6], shape: [[1, 1, 0, 0], [0, 1, 1, 1], [0, 1, 0, 1]], id: 196 } // 196
+    ];
+
+    // B 그룹은 그대로
+    const tetrominosB = [
+      { color: COLORS[7], shape: [[1]],        id:197},
+      { color: COLORS[7], shape: [[1,1]],      id:198},
+      { color: COLORS[7], shape: [[1,1,1]],    id:199},
+      { color: COLORS[7], shape: [[1,1],[1,1]],id:200},
+    ];
+
+    let board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+    let current, nextPiece;
+    let posX = 0, posY = 0;
+    let lines = 0, blocksUsed = 0, score = 0;
+    let level = 0;
+    let speedVar = 100, baseInterval = 1000, dropTimer;
+
+    // 그룹 토글 플래그
+    let nextGroupIsA = true;
+
+    // 랜덤 선택 헬퍼
+    function getRandom(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    // 스폰 시: A/B 그룹을 번갈아 가며 뽑기
+    function pickNextPiece() {
+      const grp = nextGroupIsA ? tetrominosA : tetrominosB;
+      nextGroupIsA = !nextGroupIsA;
+      return getRandom(grp);
+    }
+
+    // 스페이스바 프리뷰용: 현재 그룹에서만 랜덤
+    function pickPreviewPiece() {
+      const grp = nextGroupIsA ? tetrominosA : tetrominosB;
+      return getRandom(grp);
+    }
+
+function init() {
+  // 첫 preview를 A그룹에서 뽑아서 세팅
+  nextGroupIsA = true;
+  nextPiece = getRandom(tetrominosA);
+  spawnPiece();
+  document.addEventListener('keydown', handleKey);
+}
+
+
+function spawnPiece() {
+  // 1) current는 preview로 보여준 nextPiece 그대로 사용
+  current = nextPiece;
+
+  // 2) 가로 중앙, 세로는 블록 높이만큼 위에서 시작
+  posX = Math.floor(COLS / 2) - Math.ceil(current.shape[0].length / 2);
+  posY = -current.shape.length + 1 ;
+
+  // 3) 보드 최상단(0행)에서 충돌이면 즉시 게임오버
+  if (collision(posX, 0, current.shape)) {
+    return gameOver();
+  }
+
+  // 4) 그룹 토글 후 그 그룹에서 nextPiece(미리보기) 뽑기
+  nextGroupIsA = !nextGroupIsA;
+  const previewGrp = nextGroupIsA ? tetrominosA : tetrominosB;
+  nextPiece = getRandom(previewGrp);
+
+  // 5) 미리보기 렌더링
+  drawPreview();
+
+  // 6) 드롭 시작 및 첫 프레임 그리기
+  startDrop();
+  draw();
+}
+
+
+
+
+    function startDrop() {
+      clearInterval(dropTimer);
+      const interval = baseInterval * 100 / speedVar;
+      dropTimer = setInterval(moveDown, interval);
+    }
+
+    function handleKey(e) {
+      if (!current) return;
+      switch (e.key) {
+        case 'ArrowLeft':
+          if (!collision(posX - 1, posY, current.shape)) posX--;
+          break;
+        case 'ArrowRight':
+          if (!collision(posX + 1, posY, current.shape)) posX++;
+          break;
+        case 'ArrowUp':
+          const r = rotate(current.shape);
+          if (!collision(posX, posY, r)) current.shape = r;
+          break;
+        case 'ArrowDown':
+          moveDown();
+          break;
+        case ' ':
+   e.preventDefault();
+  // 토글은 그대로 두고, nextGroupIsA가 가리키는 그룹에서만 프리뷰 재랜덤
+  const grp = nextGroupIsA ? tetrominosA : tetrominosB;
+  nextPiece = getRandom(grp);
+  drawPreview();
+  return;
+      }
+      draw();
+    }
+
+function moveDown() {
+  // 아래가 빈 자리라면 한 칸 내려오고
+  if (!collision(posX, posY + 1, current.shape)) {
+    posY++;
+  } else {
+    // 아직 화면 밖(위)에서 멈춘 상태라면 즉시 게임오버
+    if (posY < 0) {
+      return gameOver();
+    }
+    // 보드 안에서 막혔으면 고정, 라인 정리, 스코어 갱신, 다음 스폰
+    lockPiece();
+    const clr = clearLines();
+    blocksUsed += countBlocks(current.shape);
+    lines += clr;
+    const newLv = Math.floor(lines / 3);
+    if (newLv > level) {
+      speedVar *= Math.pow(1.1, newLv - level);
+      level = newLv;
+    }
+    score = blocksUsed * (lines + 1);
+    updateStats();
+    spawnPiece();
+  }
+  // 화면 갱신
+  draw();
+}
+
+    function lockPiece() {
+      current.shape.forEach((row,y)=>{
+        row.forEach((cell,x)=>{
+          if(cell) board[posY+y][posX+x]=current.color;
+        });
+      });
+    }
+
+    function clearLines() {
+      let c=0;
+      for(let y=0;y<ROWS;y++){
+        if(board[y].every(v=>v!==null)){
+          board.splice(y,1);
+          board.unshift(Array(COLS).fill(null));
+          c++;
+        }
+      }
+      return c;
+    }
+
+    function countBlocks(shape){
+      return shape.reduce((s,row)=>s+row.filter(c=>c).length,0);
+    }
+
+    function collision(x,y,shape){
+      for(let r=0;r<shape.length;r++){
+        for(let c=0;c<shape[r].length;c++){
+          if(shape[r][c]){
+            const nx=x+c, ny=y+r;
+            if(nx<0||nx>=COLS||ny>=ROWS||(ny>=0&&board[ny][nx])) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function rotate(shape){
+      const h=shape.length, w=shape[0].length;
+      const res=Array.from({length:w},()=>Array(h).fill(0));
+      for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+        res[x][h-1-y]=shape[y][x];
+      }
+      return res;
+    }
+
+    function draw(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawBoard();
+      drawPiece();
+    }
+
+    function drawBoard(){
+      board.forEach((row,y)=>{
+        row.forEach((cell,x)=>{
+          if(cell){
+            ctx.fillStyle=cell;
+            ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+            ctx.strokeStyle='#222';
+            ctx.strokeRect(x*CELL,y*CELL,CELL,CELL);
+          }
+        });
+      });
+    }
+
+    function drawPiece(){
+      current.shape.forEach((row,y)=>{
+        row.forEach((cell,x)=>{
+          if(cell){
+            ctx.fillStyle=current.color;
+            ctx.fillRect((posX+x)*CELL,(posY+y)*CELL,CELL,CELL);
+            ctx.strokeStyle='#222';
+            ctx.strokeRect((posX+x)*CELL,(posY+y)*CELL,CELL,CELL);
+          }
+        });
+      });
+    }
+
+    function drawPreview(){
+      // 캔버스 초기화
+      nextCtx.clearRect(0,0,nextCanvas.width,nextCanvas.height);
+      // 중앙 정렬 오프셋 계산
+      const shp = nextPiece.shape;
+      const pw = shp[0].length * PREVIEW_CELL;
+      const ph = shp.length * PREVIEW_CELL;
+      const ox = (nextCanvas.width - pw)/2;
+      const oy = (nextCanvas.height - ph)/2;
+      // 블럭 그리기
+      shp.forEach((row,y)=>{
+        row.forEach((cell,x)=>{
+          if(cell){
+            nextCtx.fillStyle = nextPiece.color;
+            nextCtx.fillRect(ox + x*PREVIEW_CELL, oy + y*PREVIEW_CELL, PREVIEW_CELL, PREVIEW_CELL);
+            nextCtx.strokeStyle = '#222';
+            nextCtx.strokeRect(ox + x*PREVIEW_CELL, oy + y*PREVIEW_CELL, PREVIEW_CELL, PREVIEW_CELL);
+          }
+        });
+      });
+      // ID 표시
+  nextIdEl.innerHTML =
+    '<div class="title-line">Heptopiece</div>' +
+    '<div class="id-line">#' + String(nextPiece.id).padStart(3,'0') + '</div>';
+    }
+
+    function updateStats(){
+      statsLines.textContent = lines;
+      statsBlocks.textContent = blocksUsed;
+      statsScore.textContent = score;
+    }
+    
+function gameOver() {
+  clearInterval(dropTimer);   // 드롭 타이머 멈추기
+  alert('Game Over');         // 게임 종료 알림
+}
+
+    init();
+  </script>
+</body>
+</html>
